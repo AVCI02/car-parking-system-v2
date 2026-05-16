@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ادارة الكراج</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/static/logo.png" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <!-- شاشة تسجيل الدخول -->
+  <div id="view-login" class="login-layout">
+    <div class="login-card panel panel-elevated">
+      <div class="login-brand" aria-hidden="true">
+        <img src="/static/logo.png" alt="" class="app-brand-logo" width="100" height="100" />
+      </div>
+      <h1 class="login-title">تسجيل الدخول</h1>
+      <p class="muted login-lead">أدخل بيانات الحساب للمتابعة.</p>
+      <form id="login-form" class="stack-form">
+        <label>اسم المستخدم <input type="text" id="login-user" required autocomplete="username" /></label>
+        <label>كلمة المرور <input type="password" id="login-pass" required autocomplete="current-password" /></label>
+        <button type="submit" class="btn primary">دخول</button>
+      </form>
+      <p id="login-error" class="hint login-error" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <!-- التطبيق بعد الدخول -->
+  <div id="app-shell" class="hidden">
+    <nav class="app-nav" aria-label="التنقل الرئيسي">
+      <a href="/" class="app-brand" aria-label="ادارة الكراج">
+        <img src="/static/logo.png" alt="" class="app-brand-logo" width="36" height="36" />
+        <span class="app-brand-text">ادارة الكراج</span>
+      </a>
+      <div class="nav-tabs-group">
+        <button type="button" class="nav-tab active" id="nav-desk" data-view="desk">الإدخال والإخراج</button>
+        <button type="button" class="nav-tab" id="nav-tickets" data-view="tickets">سجل التذاكر</button>
+        <button type="button" class="nav-tab" id="nav-profiles" data-view="profiles">ادارة المركبات</button>
+        <button type="button" class="nav-tab nav-admin-only" id="nav-stats" data-view="stats">الإحصائيات</button>
+        <button type="button" class="nav-tab nav-admin-only" id="nav-settings" data-view="settings">الإعدادات</button>
+      </div>
+      <div class="nav-actions">
+        <span id="user-banner" class="nav-user muted"></span>
+        <button type="button" class="btn btn-sm" id="btn-logout">خروج</button>
+      </div>
+    </nav>
+
+    <div class="layout" id="view-desk">
+      <header class="header header-desk">
+        <div>
+          <h1>مكتب الحجز</h1>
+          <p class="muted header-tagline">دخول وخروج من مكان واحد</p>
+        </div>
+        <div class="hero-stats hero-stats-compact" id="desk-hero-stats">
+          <div class="stat"><span class="stat-label">السعة</span><span class="stat-value" id="cap">—</span></div>
+          <div class="stat"><span class="stat-label">متاح</span><span class="stat-value avail" id="avail">—</span></div>
+          <div class="stat stat-wide"><span class="stat-label">السعر / يوم</span><span class="stat-value stat-rate" id="rate">—</span></div>
+        </div>
+      </header>
+
+      <section class="panel panel-elevated desk-vehicle-scan" aria-labelledby="vehicle-scan-title">
+        <h2 class="panel-title" id="vehicle-scan-title">مسح بطاقة المركبة (QR)</h2>
+        <div class="vehicle-scan-row">
+          <div id="vehicle-qr-reader-host" class="vehicle-qr-reader-host"></div>
+          <div class="vehicle-scan-side">
+            <label class="checkout-label vehicle-qr-camera-label" for="vehicle-qr-camera">اختيار الكاميرا</label>
+            <select id="vehicle-qr-camera" class="checkin-detail-input vehicle-qr-camera-select" aria-label="اختيار كاميرا مسح QR">
+              <option value="">جاري تحميل الكاميرات…</option>
+            </select>
+            <button type="button" class="btn primary btn-block" id="vehicle-qr-start">تشغيل الكاميرا للمسح</button>
+            <button type="button" class="btn btn-ghost btn-block hidden" id="vehicle-qr-stop">إيقاف الكاميرا</button>
+            <label class="checkout-label" for="vehicle-token-manual">رمز البروفايل (يدوي)</label>
+            <input type="text" id="vehicle-token-manual" class="checkin-detail-input" dir="ltr" spellcheck="false" autocomplete="off" placeholder="UUID أو رابط يحتوي #scan=" />
+            <button type="button" class="btn accent btn-block" id="vehicle-token-submit">تأكيد الرمز</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="two-col desk-grid">
+        <section class="panel panel-elevated panel-checkin">
+          <h2 class="panel-title">دخول مركبة</h2>
+          <form id="checkin-form" class="checkin-form">
+            <label class="checkout-label" for="plate">رقم اللوحة</label>
+            <input
+              type="text"
+              id="plate"
+              class="checkin-plate-input"
+              required
+              placeholder="مثال: أ ب ج 1234"
+              autocomplete="off"
+            />
+            <div class="checkin-details">
+              <label class="checkout-label" for="mech">رقم الميكانيك <span class="muted">*</span></label>
+              <input type="text" id="mech" class="checkin-detail-input" required maxlength="64" autocomplete="off" placeholder="حسب الوثيقة" />
+              <label class="checkout-label" for="make">الطراز</label>
+              <input type="text" id="make" class="checkin-detail-input" placeholder="تويوتا" autocomplete="off" />
+              <label class="checkout-label" for="color">اللون</label>
+              <input type="text" id="color" class="checkin-detail-input" placeholder="فضي" autocomplete="off" />
+              <label class="checkout-label" for="notes">ملاحظات</label>
+              <textarea id="notes" class="checkin-detail-textarea" rows="2" placeholder="اختياري"></textarea>
+            </div>
+            <button type="submit" class="btn btn-block btn-checkin-submit">إصدار إيصال وتخصيص مكان</button>
+          </form>
+        </section>
+
+        <section class="panel panel-elevated panel-checkout">
+          <h2 class="panel-title">خروج مركبة</h2>
+          <form id="checkout-form" class="checkout-form">
+            <label class="checkout-label" for="receipt">رمز الإيصال</label>
+            <input
+              type="text"
+              id="receipt"
+              class="checkout-receipt-input"
+              dir="ltr"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
+              placeholder="مثال: ABCD234567"
+              required
+            />
+            <p class="checkout-micro muted">الصق الرمز من الإيصال أو اكتبه يدويًا ثم اضغط إتمام الخروج.</p>
+            <button type="submit" class="btn btn-block btn-checkout-submit">إتمام الخروج وحساب الرسوم</button>
+          </form>
+        </section>
+      </div>
+    </div>
+
+    <div class="layout hidden" id="view-tickets">
+      <header class="header">
+        <div>
+          <h1>سجل التذاكر</h1>
+          <p class="muted header-tagline">نسخ الرمز أو معاينة الإيصال</p>
+        </div>
+        <button type="button" class="btn" id="tickets-refresh">تحديث القائمة</button>
+      </header>
+
+      <section class="panel panel-elevated">
+        <div class="table-wrap table-modern">
+          <table>
+            <thead>
+              <tr>
+                <th>اللوحة</th>
+                <th>رمز الإيصال</th>
+                <th>وقت الدخول</th>
+                <th>الحالة</th>
+                <th>وقت الخروج</th>
+                <th>المكان</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tickets-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="layout hidden" id="view-profiles">
+      <header class="header header-desk">
+        <div>
+          <h1>ادارة المركبات</h1>
+          <p class="muted header-tagline">كل المركبات المسجّلة: تسجيل السائق أو الدخول اليدوي من المكتب</p>
+        </div>
+        <div class="hero-stats hero-stats-compact" id="profiles-hero-stats">
+          <div class="stat stat-wide"><span class="stat-label">إجمالي المركبات</span><span class="stat-value" id="profiles-total">—</span></div>
+        </div>
+        <button type="button" class="btn" id="profiles-refresh">تحديث القائمة</button>
+      </header>
+
+      <section class="panel panel-elevated">
+        <div class="profiles-search-row">
+          <label class="profiles-search-label" for="profiles-search">بحث باللوحة أو رقم الميكانيك</label>
+          <input type="search" id="profiles-search" class="checkin-detail-input profiles-search-input" placeholder="مثال: أ ب ج 1234 أو رقم الميكانيك" autocomplete="off" />
+        </div>
+        <div class="table-wrap table-modern" style="margin-top:1rem;">
+          <table>
+            <thead>
+              <tr>
+                <th>التسلسل</th>
+                <th>المعرّف</th>
+                <th>اللوحة</th>
+                <th>الطراز</th>
+                <th>اللون</th>
+                <th>الميكانيك</th>
+                <th>صورة</th>
+                <th>تاريخ التسجيل</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="profiles-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="layout hidden" id="view-stats">
+      <header class="header header-stats">
+        <div>
+          <h1>إحصائيات الشهر</h1>
+        </div>
+        <div class="stats-toolbar">
+          <label class="stats-month-label">الشهر
+            <input type="month" id="stats-month" class="stats-month-input" />
+          </label>
+          <button type="button" class="btn primary btn-sm-pad" id="stats-refresh">تحديث</button>
+          <button type="button" class="btn btn-sm-pad" id="stats-export-xlsx">تنزيل Excel</button>
+        </div>
+      </header>
+
+      <section class="panel panel-elevated stats-summary" id="stats-summary" aria-live="polite">
+        <div class="stats-cards">
+          <div class="stat-card"><span class="stat-card-label">دخول المركبات</span><span class="stat-card-value" id="stats-total-entries">—</span></div>
+          <div class="stat-card"><span class="stat-card-label">خروج مكتمل</span><span class="stat-card-value" id="stats-total-count">—</span></div>
+          <div class="stat-card"><span class="stat-card-label">إيراد (ل.س جديدة)</span><span class="stat-card-value" id="stats-total-new">—</span></div>
+          <div class="stat-card"><span class="stat-card-label">إيراد (ل.س قديمة)</span><span class="stat-card-value" id="stats-total-old">—</span></div>
+        </div>
+      </section>
+
+      <section class="panel panel-elevated">
+        <h2 class="panel-title">يوم بيوم</h2>
+        <div class="table-wrap table-modern">
+          <table>
+            <thead>
+              <tr>
+                <th>اليوم</th>
+                <th>دخول</th>
+                <th>خروج</th>
+                <th>إيراد جديد</th>
+                <th>إيراد قديم</th>
+              </tr>
+            </thead>
+            <tbody id="stats-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="layout hidden" id="view-settings">
+      <header class="header">
+        <div>
+          <h1>إعدادات الموقف</h1>
+          <p class="muted header-tagline">السعة والتسعير والحسابات</p>
+        </div>
+      </header>
+
+      <section class="panel panel-elevated">
+        <h2 class="panel-title">السعة والتسعير</h2>
+        <form id="settings-form" class="grid-form">
+          <label>عدد الأماكن <input type="number" id="total-slots" min="1" required /></label>
+          <label>السعر / يوم (ل.س جديدة) <input type="number" id="price-hour" min="0" step="1" required /></label>
+          <button type="submit" class="btn primary">حفظ</button>
+        </form>
+        <p id="settings-msg" class="hint muted" aria-live="polite"></p>
+        <p class="hint muted small-print">لا يمكن تقليل السعة عن عدد السيارات المركونة حاليًا.</p>
+      </section>
+
+      <section class="panel panel-elevated">
+        <h2 class="panel-title">رابط تسجيل السائقين (بروفايل المركبة)</h2>
+        <p class="muted small-print">يُعبأ مرة واحدة: اللوحة، الطراز، اللون، رقم الميكانيك، وصورة. بعدها يحصل السائق على بطاقة رقمية مع QR ثابت يعرضه للموظف عند الدخول أو الخروج.</p>
+        <p class="driver-link-row"><a id="driver-register-link" href="/CarRegistration" target="_blank" rel="noopener noreferrer">فتح صفحة CarRegistration</a></p>
+        <button type="button" class="btn btn-sm" id="copy-driver-link">نسخ الرابط الكامل</button>
+      </section>
+
+      <section class="panel panel-elevated">
+        <h2 class="panel-title">تغيير اسم مستخدم</h2>
+        <p class="muted small-print">يُحدّث اسم الدخول للمدير أو الموظف. إن غيّرت اسمك الحالي سيطلب منك النظام تسجيل الدخول مجددًا.</p>
+        <form id="admin-rename-form" class="stack-form stack-form-tight">
+          <label>المستخدم الحالي
+            <select id="admin-rename-user" required></select>
+          </label>
+          <label>اسم المستخدم الجديد <input type="text" id="admin-rename-new" maxlength="64" autocomplete="off" required /></label>
+          <button type="submit" class="btn primary btn-block">حفظ الاسم الجديد</button>
+        </form>
+        <p id="admin-rename-msg" class="hint muted" aria-live="polite"></p>
+      </section>
+
+      <section class="panel panel-elevated">
+        <h2 class="panel-title">تعيين كلمة مرور مستخدم</h2>
+        <p class="muted small-print">للمدير: تحديث حساب المدير أو الموظف دون الحاجة لكلمة المرور الحالية.</p>
+        <form id="admin-password-form" class="stack-form stack-form-tight">
+          <label>المستخدم
+            <select id="admin-pw-user" required></select>
+          </label>
+          <label>كلمة المرور الجديدة <input type="password" id="admin-pw-new" minlength="6" autocomplete="new-password" required /></label>
+          <button type="submit" class="btn accent btn-block">حفظ كلمة المرور</button>
+        </form>
+        <p id="admin-pw-msg" class="hint muted" aria-live="polite"></p>
+      </section>
+
+      <section class="panel panel-elevated panel-danger-zone">
+        <h2 class="panel-title">مسح بيانات الموقف</h2>
+        <p class="muted small-print">يحذف <strong>كل</strong> جلسات الدخول/الخروج والإيصالات من القاعدة، ويعيد السعة إلى 20 والسعر إلى 200 ل.س جديدة/يوم. <strong>لا يحذف حسابات المستخدمين.</strong></p>
+        <p class="small-print muted">للتأكيد اكتب بالضبط في الحقل التالي: <code dir="ltr" class="wipe-code">امسح_كل_البيانات</code></p>
+        <form id="admin-wipe-form" class="stack-form stack-form-tight">
+          <label>تأكيد النص
+            <input type="text" id="admin-wipe-confirm" dir="ltr" autocomplete="off" placeholder="امسح_كل_البيانات" />
+          </label>
+          <button type="submit" class="btn btn-danger btn-block">تنفيذ المسح</button>
+        </form>
+        <p id="admin-wipe-msg" class="hint muted" aria-live="polite"></p>
+      </section>
+
+    </div>
+
+    <!-- تدفق دخول/خروج عبر بروفايل المركبة -->
+    <div id="vehicle-flow-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="vehicle-flow-modal-title">
+      <div class="modal-backdrop" id="vehicle-flow-modal-backdrop" tabindex="-1"></div>
+      <div class="modal-dialog modal-narrow checkout-result-dialog-solid vehicle-flow-dialog">
+        <div class="modal-header">
+          <h2 id="vehicle-flow-modal-title">بروفايل المركبة</h2>
+          <button type="button" class="btn modal-close" id="vehicle-flow-modal-close" aria-label="إغلاق">×</button>
+        </div>
+        <div class="modal-body" id="vehicle-flow-modal-body"></div>
+        <div class="modal-footer no-print vehicle-flow-footer">
+          <button type="button" class="btn btn-ghost" id="vehicle-flow-cancel">إلغاء</button>
+          <button type="button" class="btn primary hidden" id="vehicle-flow-primary">متابعة</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- تنبيه عام (مثلاً تكرار اللوحة) -->
+    <div id="message-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="message-modal-title">
+      <div class="modal-backdrop" id="message-modal-backdrop" tabindex="-1"></div>
+      <div class="modal-dialog modal-narrow checkout-result-dialog-solid message-modal-dialog">
+        <div class="modal-header">
+          <h2 id="message-modal-title">تنبيه</h2>
+          <button type="button" class="btn modal-close" id="message-modal-close" aria-label="إغلاق">×</button>
+        </div>
+        <div class="modal-body">
+          <p id="message-modal-body" class="message-modal-text"></p>
+        </div>
+        <div class="modal-footer no-print">
+          <button type="button" class="btn primary" id="message-modal-dismiss">حسناً</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- نتيجة الخروج (منبثقة) -->
+    <div id="checkout-result-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="checkout-result-modal-title">
+      <div class="modal-backdrop" id="checkout-result-modal-backdrop" tabindex="-1"></div>
+      <div class="modal-dialog modal-narrow checkout-result-dialog checkout-result-dialog-solid">
+        <div class="modal-header">
+          <h2 id="checkout-result-modal-title">فاتورة الخروج</h2>
+          <button type="button" class="btn modal-close" id="checkout-result-modal-close" aria-label="إغلاق">×</button>
+        </div>
+        <div class="modal-body" id="checkout-result-modal-body"></div>
+        <div class="modal-footer no-print">
+          <button type="button" class="btn primary" id="checkout-result-modal-print">طباعة الفاتورة</button>
+          <button type="button" class="btn" id="checkout-result-modal-dismiss">حسناً</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- بطاقة المركبة (عرض وتنزيل) -->
+    <div id="vehicle-card-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="vehicle-card-modal-title">
+      <div class="modal-backdrop" id="vehicle-card-modal-backdrop" tabindex="-1"></div>
+      <div class="modal-dialog vehicle-card-modal-dialog">
+        <div class="modal-header">
+          <h2 id="vehicle-card-modal-title">بطاقة المركبة</h2>
+          <button type="button" class="btn modal-close" id="vehicle-card-modal-close" aria-label="إغلاق">×</button>
+        </div>
+        <div class="modal-body vehicle-card-modal-body">
+          <div id="vehicle-card-modal-host"></div>
+        </div>
+        <div class="modal-footer no-print">
+          <button type="button" class="btn primary" id="vehicle-card-download">تنزيل البطاقة (PNG)</button>
+          <button type="button" class="btn" id="vehicle-card-dismiss">إغلاق</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- نافذة الإيصال (منبثقة + طباعة) -->
+    <div id="receipt-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
+      <div class="modal-backdrop" id="receipt-modal-backdrop" tabindex="-1"></div>
+      <div class="modal-dialog receipt-modal-dialog">
+        <div class="modal-header">
+          <h2 id="receipt-modal-title">إيصال الموقف</h2>
+          <button type="button" class="btn modal-close" id="receipt-modal-close" aria-label="إغلاق">×</button>
+        </div>
+        <div class="modal-body receipt-modal-body" id="receipt-modal-body"></div>
+        <div class="modal-footer no-print receipt-modal-footer">
+          <button type="button" class="btn primary" id="receipt-modal-print">طباعة الإيصال</button>
+          <button type="button" class="btn hidden" id="receipt-modal-card">بطاقة المركبة</button>
+          <button type="button" class="btn" id="receipt-modal-dismiss">إغلاق</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CarRegistration — ادارة الكراج</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/static/logo.png" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    .driver-wrap { max-width: var(--driver-card-width, 680px); margin: 0 auto; padding: 0 0 1rem; }
+    .driver-title { margin: 0 0 0.5rem; font-size: 1.35rem; }
+    .driver-lead { margin: 0 0 1.25rem; color: var(--muted); font-size: 0.9rem; }
+    .driver-photo-hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.35rem; }
+    #driver-result { margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div class="driver-page-bg">
+    <div class="driver-wrap">
+      <header class="driver-page-brand">
+        <img src="/static/logo.png" alt="" class="app-brand-logo" width="48" height="48" />
+        <span class="app-brand-text">ادارة الكراج</span>
+      </header>
+      <div id="driver-form-view">
+        <h1 class="driver-title">CarRegistration — تسجيل بروفايل المركبة</h1>
+        <p class="driver-lead">أدخل بيانات السيارة. يمكنك إرفاق صورة اختيارية لتسهيل التحقق عند الموقف. بعد الحفظ تظهر بطاقة رقمية مع رمز QR ثابت — احفظ البطاقة كاملة كصورة واعرضها للموظف عند الدخول والخروج.</p>
+        <form id="driver-form" class="stack-form panel panel-elevated" style="padding:1.25rem;">
+          <label>رقم اللوحة <span class="muted">*</span>
+            <input type="text" id="d-plate" required maxlength="32" autocomplete="off" placeholder="مثال: أ ب ج 1234" />
+          </label>
+          <label>نوع / الطراز
+            <input type="text" id="d-make" maxlength="64" autocomplete="off" placeholder="مثال: تويوتا كورولا" />
+          </label>
+          <label>اللون
+            <input type="text" id="d-color" maxlength="32" autocomplete="off" placeholder="مثال: فضي" />
+          </label>
+          <label>رقم الميكانيك <span class="muted">*</span>
+            <input type="text" id="d-mech" required maxlength="64" autocomplete="off" placeholder="حسب الوثيقة" />
+          </label>
+          <label>صورة المركبة <span class="muted">(اختياري)</span>
+            <input type="file" id="d-photo" accept="image/jpeg,image/png,image/webp" />
+          </label>
+          <p class="driver-photo-hint">اختياري — صيغ مسموحة: JPG أو PNG أو Webp — حتى 5 ميجابايت.</p>
+          <p id="driver-err" class="hint login-error" aria-live="polite"></p>
+          <button type="submit" class="btn primary btn-block">حفظ وإنشاء البروفايل</button>
+        </form>
+      </div>
+
+      <div id="driver-result" class="hidden">
+        <article class="driver-card" aria-label="بطاقة المركبة">
+          <div class="driver-card-shine" aria-hidden="true"></div>
+          <div class="driver-card-inner">
+            <header class="driver-card-head">
+              <img src="/static/logo.png" alt="" class="driver-card-logo" width="40" height="40" />
+              <h2 class="driver-card-title">بطاقة المركبة</h2>
+            </header>
+            <div class="driver-card-grid">
+              <dl class="driver-card-dl">
+                <div>
+                  <dt>رقم البروفايل</dt>
+                  <dd id="driver-dl-profile">—</dd>
+                </div>
+                <div>
+                  <dt>اللوحة</dt>
+                  <dd id="driver-dl-plate" class="driver-card-dl-value-wide">—</dd>
+                </div>
+                <div>
+                  <dt>الطراز</dt>
+                  <dd id="driver-dl-make">—</dd>
+                </div>
+                <div>
+                  <dt>اللون</dt>
+                  <dd id="driver-dl-color">—</dd>
+                </div>
+                <div>
+                  <dt>رقم الميكانيك</dt>
+                  <dd id="driver-dl-mech" class="driver-card-dl-value-wide">—</dd>
+                </div>
+              </dl>
+              <div class="driver-card-qr-panel">
+                <p class="driver-card-qr-caption">امسح من تطبيق الموقف</p>
+                <div id="driver-qr-host"></div>
+              </div>
+            </div>
+            <div class="driver-card-foot">
+              <button type="button" class="btn primary btn-block" id="driver-save-card-png">حفظ البطاقة كاملة كصورة (PNG)</button>
+              <button type="button" class="btn btn-block" id="driver-save-qr-png">حفظ رمز QR فقط (PNG)</button>
+              <p class="driver-photo-hint">يُنزَّل الملف إلى جهازك واحتفظ به لعرضه على شاشة السيارة عند الموقف.</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function setDlText(id, v) {
+      const el = $(id);
+      if (el) el.textContent = v && String(v).trim() ? String(v).trim() : "—";
+    }
+
+    function extractScanToken(raw) {
+      const s = String(raw || "").trim();
+      if (!s) return "";
+      const hashMatch = s.match(/[#&?]scan=([^&\s#]+)/i);
+      if (hashMatch) {
+        try {
+          return decodeURIComponent(hashMatch[1]);
+        } catch {
+          return hashMatch[1];
+        }
+      }
+      const uuidMatch = s.match(
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+      );
+      if (uuidMatch) return uuidMatch[0];
+      return s;
+    }
+
+    function profileIdForFilename() {
+      const idText = ($("driver-dl-profile").textContent || "").replace(/^#/, "").trim();
+      return idText || "vehicle";
+    }
+
+    function prepareCardCloneForExport(clonedDoc) {
+      const clonedCard = clonedDoc.querySelector(".driver-card");
+      if (!clonedCard) return;
+      clonedCard.style.fontFamily = '"Segoe UI", Tahoma, "Arabic UI Text", Arial, sans-serif';
+      clonedCard.style.direction = "rtl";
+      clonedCard.querySelectorAll(".driver-card-dl dt, .driver-card-dl dd, .driver-card-title, .driver-card-seq, .driver-card-qr-caption").forEach((el) => {
+        el.style.letterSpacing = "normal";
+        el.style.textTransform = "none";
+        el.style.fontFamily = '"Segoe UI", Tahoma, "Arabic UI Text", Arial, sans-serif';
+      });
+    }
+
+    async function downloadDriverCardPng(profileId) {
+      if (typeof html2canvas === "undefined") {
+        alert("تعذّر تحميل أداة تصدير البطاقة. تحقق من الاتصال وأعد تحميل الصفحة.");
+        return;
+      }
+      const card = document.querySelector(".driver-card");
+      if (!card) return;
+      const btn = $("driver-save-card-png");
+      const prevLabel = btn ? btn.textContent : "";
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "جارٍ إنشاء الصورة…";
+      }
+      try {
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
+        const canvas = await html2canvas(card, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#0f141c",
+          ignoreElements: (node) =>
+            node.classList &&
+            (node.classList.contains("driver-card-foot") ||
+              node.classList.contains("driver-card-shine")),
+          onclone: prepareCardCloneForExport,
+        });
+        const a = document.createElement("a");
+        a.href = canvas.toDataURL("image/png");
+        a.download = `parking-vehicle-card-${profileId}.png`;
+        a.click();
+      } catch (ex) {
+        alert(ex.message || "تعذّر تصدير البطاقة. جرّب متصفحًا آخر أو صوّر الشاشة.");
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = prevLabel;
+        }
+      }
+    }
+
+    function downloadDriverQrPng(profileId) {
+      const host = $("driver-qr-host");
+      const srcCanvas = host.querySelector("canvas");
+      if (!srcCanvas) {
+        alert("تعذّر إنشاء ملف الصورة من هذا المتصفح. جرّب متصفحًا آخر أو صوّر الشاشة.");
+        return;
+      }
+      const pad = 28;
+      const w = srcCanvas.width + pad * 2;
+      const h = srcCanvas.height + pad * 2;
+      const out = document.createElement("canvas");
+      out.width = w;
+      out.height = h;
+      const ctx = out.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(srcCanvas, pad, pad);
+      const a = document.createElement("a");
+      a.href = out.toDataURL("image/png");
+      a.download = `parking-vehicle-qr-${profileId}.png`;
+      a.click();
+    }
+
+    $("driver-save-card-png").addEventListener("click", () => {
+      const id = profileIdForFilename();
+      downloadDriverCardPng(id).catch(() => {});
+    });
+
+    $("driver-save-qr-png").addEventListener("click", () => {
+      downloadDriverQrPng(profileIdForFilename());
+    });
+
+    $("driver-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const err = $("driver-err");
+      err.textContent = "";
+      const fileInput = $("d-photo");
+      const fd = new FormData();
+      fd.append("license_plate", $("d-plate").value.trim());
+      fd.append("vehicle_make", $("d-make").value.trim() || "");
+      fd.append("vehicle_color", $("d-color").value.trim() || "");
+      fd.append("mechanical_number", $("d-mech").value.trim());
+      if (fileInput.files && fileInput.files[0]) {
+        fd.append("photo", fileInput.files[0]);
+      }
+      try {
+        const res = await fetch("/api/public/vehicle-profile", { method: "POST", body: fd });
+        const text = await res.text();
+        let data = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch {
+          data = null;
+        }
+        if (!res.ok) {
+          const msg =
+            typeof data?.detail === "string"
+              ? data.detail
+              : data?.detail
+                ? JSON.stringify(data.detail)
+                : text || res.statusText;
+          err.textContent = msg;
+          return;
+        }
+        $("driver-form-view").classList.add("hidden");
+        $("driver-result").classList.remove("hidden");
+
+        $("driver-dl-profile").textContent = "#" + data.profile_id;
+        setDlText("driver-dl-plate", data.license_plate || $("d-plate").value.trim());
+        setDlText("driver-dl-make", data.vehicle_make || $("d-make").value.trim());
+        setDlText("driver-dl-color", data.vehicle_color || $("d-color").value.trim());
+        setDlText("driver-dl-mech", data.mechanical_number || $("d-mech").value.trim());
+
+        $("driver-qr-host").innerHTML = "";
+        if (typeof QRCode !== "undefined") {
+          const qrText =
+            extractScanToken(data.public_token || data.qr_payload || "");
+          const level = QRCode.CorrectLevel != null ? QRCode.CorrectLevel.H : undefined;
+          new QRCode($("driver-qr-host"), {
+            text: qrText,
+            width: 200,
+            height: 200,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            ...(level !== undefined ? { correctLevel: level } : {}),
+          });
+        } else {
+          $("driver-qr-host").innerHTML = "<p class=\"muted\">تعذّر تحميل مكتبة QR.</p>";
+        }
+      } catch (ex) {
+        err.textContent = ex.message || "فشل الإرسال.";
+      }
+    });
+  </script>
+</body>
+</html>
