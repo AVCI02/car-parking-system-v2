@@ -9,8 +9,8 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request,
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import delete, func, or_, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy.orm import Session, aliased
 
 from app.auth_password import hash_password, verify_password
 from app.auth_tokens import create_access_token
@@ -42,7 +42,10 @@ from app.schemas import (
     SettingsUpdate,
     UserListItem,
     UserMe,
+    VehicleProfileFilterOption,
+    VehicleProfileFiltersMeta,
     VehicleProfileListItem,
+    VehicleProfileListResponse,
     VehicleProfilePublic,
     VehiclePublicRegisterResponse,
     VehicleScanResponse,
@@ -794,60 +797,170 @@ def vehicle_profile_photo(
 
 def _vehicle_profile_search_filters(term: str):
     """مطابقة جزئية غير حساسة لحالة الأحرف على حقول البروفايل."""
-    pattern = f"%{term.strip().lower()}%"
+    raw = term.strip()
+    if not raw:
+        return None
+    lowered = raw.lower()
+    plate_prefix = lowered.replace(" ", "")
+    clauses = []
 
-    def _col(column):
-        return func.coalesce(func.lower(column), "").like(pattern)
+    def _contains(column):
+        return func.coalesce(func.lower(column), "").like(f"%{lowered}%")
 
-    return or_(
-        _col(VehicleProfile.license_plate),
-        _col(VehicleProfile.mechanical_number),
-        _col(VehicleProfile.vehicle_make),
-        _col(VehicleProfile.vehicle_type),
-        _col(VehicleProfile.vehicle_color),
-        _col(VehicleProfile.driver_name),
-        _col(VehicleProfile.owner_name),
-        _col(VehicleProfile.partnership_company),
+    clauses.extend(
+        [
+            _contains(VehicleProfile.license_plate),
+            _contains(VehicleProfile.mechanical_number),
+            _contains(VehicleProfile.vehicle_make),
+            _contains(VehicleProfile.vehicle_type),
+            _contains(VehicleProfile.vehicle_color),
+            _contains(VehicleProfile.driver_name),
+            _contains(VehicleProfile.owner_name),
+            _contains(VehicleProfile.partnership_company),
+        ]
+    )
+    if len(plate_prefix) >= 2:
+        clauses.append(func.coalesce(func.lower(VehicleProfile.license_plate), "").like(f"{plate_prefix}%"))
+    return or_(*clauses)
+
+
+def _vehicle_profile_list_filters(
+    q: str | None,
+    vehicle_type: str | None,
+    partnership_company: str | None,
+    has_photo: bool | None,
+):
+    clauses = []
+    if q and q.strip():
+        clauses.append(_vehicle_profile_search_filters(q))
+    if vehicle_type and vehicle_type.strip():
+        clauses.append(VehicleProfile.vehicle_type == vehicle_type.strip())
+    if partnership_company and partnership_company.strip():
+        clauses.append(VehicleProfile.partnership_company == partnership_company.strip())
+    if has_photo is True:
+        clauses.append(VehicleProfile.photo_path.isnot(None))
+        clauses.append(VehicleProfile.photo_path != "")
+    elif has_photo is False:
+        clauses.append(or_(VehicleProfile.photo_path.is_(None), VehicleProfile.photo_path == ""))
+    if not clauses:
+        return None
+    return clauses[0] if len(clauses) == 1 else and_(*clauses)
+
+
+def _apply_vehicle_profile_filters(stmt, q, vehicle_type, partnership_company, has_photo):
+    filt = _vehicle_profile_list_filters(q, vehicle_type, partnership_company, has_photo)
+    if filt is not None:
+        stmt = stmt.where(filt)
+    return stmt
+
+
+def _vehicle_profile_registration_order_subquery():
+    vp_rank = aliased(VehicleProfile)
+    return (
+        select(func.count())
+        .select_from(vp_rank)
+        .where(vp_rank.id <= VehicleProfile.id)
+        .scalar_subquery()
     )
 
 
-# حد جلب بروفايلات المركبات في الواجهة (يُفضّل مزامنته مع static/app.js)
-VEHICLE_PROFILES_LIST_MAX = 20_000
+def _vehicle_profile_list_item(r: VehicleProfile, registration_order: int) -> VehicleProfileListItem:
+    return VehicleProfileListItem(
+        id=r.id,
+        public_token=r.public_token,
+        license_plate=r.license_plate,
+        vehicle_make=r.vehicle_make,
+        vehicle_type=r.vehicle_type,
+        vehicle_color=r.vehicle_color,
+        driver_name=r.driver_name,
+        owner_name=r.owner_name,
+        partnership_company=r.partnership_company,
+        mechanical_number=_mechanical_number(r.mechanical_number) or None,
+        has_photo=bool(r.photo_path),
+        created_at=r.created_at,
+        qr_payload=_vehicle_qr_payload(r.public_token),
+        registration_order=registration_order,
+    )
 
 
-@app.get("/api/vehicle-profiles", response_model=list[VehicleProfileListItem])
-def list_vehicle_profiles(
-    request: Request,
-    limit: int = Query(VEHICLE_PROFILES_LIST_MAX, ge=1, le=VEHICLE_PROFILES_LIST_MAX),
-    q: str | None = Query(None, max_length=120),
+VEHICLE_PROFILES_PAGE_SIZE_DEFAULT = 50
+VEHICLE_PROFILES_PAGE_SIZE_MAX = 100
+VEHICLE_PROFILES_FILTER_OPTIONS_LIMIT = 120
+
+
+@app.get("/api/vehicle-profiles/meta", response_model=VehicleProfileFiltersMeta)
+def vehicle_profiles_meta(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """كل بروفايلات المركبات (للموظف والمدير)."""
-    reg_order = func.row_number().over(order_by=VehicleProfile.id.asc()).label("registration_order")
-    stmt = select(VehicleProfile, reg_order).order_by(VehicleProfile.created_at.desc())
-    if q and q.strip():
-        stmt = stmt.where(_vehicle_profile_search_filters(q))
-    rows = db.execute(stmt.limit(limit)).all()
-    return [
-        VehicleProfileListItem(
-            id=r.id,
-            public_token=r.public_token,
-            license_plate=r.license_plate,
-            vehicle_make=r.vehicle_make,
-            vehicle_type=r.vehicle_type,
-            vehicle_color=r.vehicle_color,
-            driver_name=r.driver_name,
-            owner_name=r.owner_name,
-            partnership_company=r.partnership_company,
-            mechanical_number=_mechanical_number(r.mechanical_number) or None,
-            has_photo=bool(r.photo_path),
-            created_at=r.created_at,
-            qr_payload=_vehicle_qr_payload(r.public_token),
-            registration_order=int(reg),
+    """خيارات الفلاتر وإجمالي المركبات (بدون تحميل القائمة كاملة)."""
+    total = db.scalar(select(func.count()).select_from(VehicleProfile)) or 0
+    type_rows = db.execute(
+        select(VehicleProfile.vehicle_type, func.count())
+        .where(VehicleProfile.vehicle_type.isnot(None), VehicleProfile.vehicle_type != "")
+        .group_by(VehicleProfile.vehicle_type)
+        .order_by(func.count().desc(), VehicleProfile.vehicle_type.asc())
+        .limit(VEHICLE_PROFILES_FILTER_OPTIONS_LIMIT)
+    ).all()
+    company_rows = db.execute(
+        select(VehicleProfile.partnership_company, func.count())
+        .where(
+            VehicleProfile.partnership_company.isnot(None),
+            VehicleProfile.partnership_company != "",
         )
-        for r, reg in rows
+        .group_by(VehicleProfile.partnership_company)
+        .order_by(func.count().desc(), VehicleProfile.partnership_company.asc())
+        .limit(VEHICLE_PROFILES_FILTER_OPTIONS_LIMIT)
+    ).all()
+    return VehicleProfileFiltersMeta(
+        total=int(total),
+        vehicle_types=[
+            VehicleProfileFilterOption(value=str(name), count=int(cnt)) for name, cnt in type_rows
+        ],
+        partnership_companies=[
+            VehicleProfileFilterOption(value=str(name), count=int(cnt)) for name, cnt in company_rows
+        ],
+    )
+
+
+@app.get("/api/vehicle-profiles", response_model=VehicleProfileListResponse)
+def list_vehicle_profiles(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(VEHICLE_PROFILES_PAGE_SIZE_DEFAULT, ge=1, le=VEHICLE_PROFILES_PAGE_SIZE_MAX),
+    q: str | None = Query(None, max_length=120),
+    vehicle_type: str | None = Query(None, max_length=64),
+    partnership_company: str | None = Query(None, max_length=128),
+    has_photo: bool | None = Query(None),
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    """بروفايلات المركبات مع ترقيم صفحات وبحث/فلاتر من الخادم."""
+    count_stmt = select(func.count()).select_from(VehicleProfile)
+    count_stmt = _apply_vehicle_profile_filters(
+        count_stmt, q, vehicle_type, partnership_company, has_photo
+    )
+    total = int(db.scalar(count_stmt) or 0)
+    total_pages = max(1, (total + page_size - 1) // page_size) if total else 1
+    page = min(page, total_pages) if total else 1
+    offset = (page - 1) * page_size
+
+    reg_order = _vehicle_profile_registration_order_subquery().label("registration_order")
+    stmt = select(VehicleProfile, reg_order).order_by(
+        VehicleProfile.created_at.desc(), VehicleProfile.id.desc()
+    )
+    stmt = _apply_vehicle_profile_filters(stmt, q, vehicle_type, partnership_company, has_photo)
+    rows = db.execute(stmt.offset(offset).limit(page_size)).all()
+    items = [
+        _vehicle_profile_list_item(r, int(reg)) for r, reg in rows
     ]
+    return VehicleProfileListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
 
 
 @app.get("/api/employee/vehicle-scan/{token}", response_model=VehicleScanResponse)

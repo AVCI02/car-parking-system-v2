@@ -5,10 +5,18 @@ const TOKEN_KEY = "parking_access_token";
 
 /** آخر تحميل لسجل التذاكر (للمعاينة السريعة) */
 let ticketLogCache = [];
-/** آخر تحميل لقائمة بروفايلات المركبات */
+/** صفحة بروفايلات المركبات الحالية (من الخادم) */
 let vehicleProfileListCache = [];
 /** نص البحث في صفحة إدارة المركبات */
 let profilesSearchQuery = "";
+/** فلاتر قائمة المركبات */
+let profilesFilters = { vehicle_type: "", partnership_company: "", has_photo: "" };
+/** ترقيم صفحات بروفايلات المركبات */
+let profilesPage = 1;
+const PROFILES_PAGE_SIZE = 50;
+let profilesListMeta = { total: 0, page: 1, total_pages: 1 };
+let profilesFilterOptions = null;
+let profilesListLoading = false;
 /** معرّف البروفايل المعروض في نافذة البطاقة (للتنزيل) */
 let vehicleCardProfileId = null;
 /** بروفايل مرتبط بإيصال الدخول المعروض حاليًا (لزر بطاقة المركبة) */
@@ -579,24 +587,6 @@ async function downloadVehicleCardPng() {
   }
 }
 
-function filterVehicleProfiles(rows) {
-  const q = profilesSearchQuery.trim().toLowerCase();
-  if (!q) return rows;
-  return rows.filter((r) => {
-    const fields = [
-      r.license_plate,
-      r.mechanical_number,
-      r.vehicle_make,
-      r.vehicle_type,
-      r.vehicle_color,
-      r.driver_name,
-      r.owner_name,
-      r.partnership_company,
-    ];
-    return fields.some((v) => (v || "").toLowerCase().includes(q));
-  });
-}
-
 function buildVehicleProfileDl(p) {
   const field = (v) => (v ? escapeHtml(v) : "—");
   return `
@@ -628,6 +618,7 @@ async function deleteVehicleProfile(row) {
   }
   try {
     await api(`/api/admin/vehicle-profiles/${row.id}`, { method: "DELETE" });
+    profilesFilterOptions = null;
     await refreshVehicleProfiles();
     alert("تمت إزالة المركبة.");
   } catch (e) {
@@ -1154,6 +1145,7 @@ function wireNav() {
     refreshTickets().catch((e) => alert(e.message));
   });
   $("profiles-refresh")?.addEventListener("click", () => {
+    profilesFilterOptions = null;
     refreshVehicleProfiles().catch((e) => alert(e.message));
   });
   $("stats-refresh").addEventListener("click", () => {
@@ -1170,11 +1162,49 @@ function wireNav() {
   let profilesSearchTimer = null;
   $("profiles-search")?.addEventListener("input", (e) => {
     profilesSearchQuery = e.target.value || "";
-    renderVehicleProfilesTable();
+    profilesPage = 1;
     clearTimeout(profilesSearchTimer);
     profilesSearchTimer = setTimeout(() => {
       refreshVehicleProfiles().catch((err) => alert(err.message));
-    }, 350);
+    }, 300);
+  });
+  const onFilterChange = () => {
+    profilesFilters = {
+      vehicle_type: $("profiles-filter-type")?.value || "",
+      partnership_company: $("profiles-filter-company")?.value || "",
+      has_photo: $("profiles-filter-photo")?.value || "",
+    };
+    profilesPage = 1;
+    refreshVehicleProfiles().catch((err) => alert(err.message));
+  };
+  $("profiles-filter-type")?.addEventListener("change", onFilterChange);
+  $("profiles-filter-company")?.addEventListener("change", onFilterChange);
+  $("profiles-filter-photo")?.addEventListener("change", onFilterChange);
+  $("profiles-clear-filters")?.addEventListener("click", () => {
+    profilesSearchQuery = "";
+    profilesFilters = { vehicle_type: "", partnership_company: "", has_photo: "" };
+    profilesPage = 1;
+    const searchEl = $("profiles-search");
+    if (searchEl) searchEl.value = "";
+    const typeEl = $("profiles-filter-type");
+    const companyEl = $("profiles-filter-company");
+    const photoEl = $("profiles-filter-photo");
+    if (typeEl) typeEl.value = "";
+    if (companyEl) companyEl.value = "";
+    if (photoEl) photoEl.value = "";
+    refreshVehicleProfiles().catch((err) => alert(err.message));
+  });
+  $("profiles-prev")?.addEventListener("click", () => {
+    if (profilesPage > 1) {
+      profilesPage -= 1;
+      refreshVehicleProfiles().catch((err) => alert(err.message));
+    }
+  });
+  $("profiles-next")?.addEventListener("click", () => {
+    if (profilesPage < profilesListMeta.total_pages) {
+      profilesPage += 1;
+      refreshVehicleProfiles().catch((err) => alert(err.message));
+    }
   });
   $("btn-logout").addEventListener("click", () => {
     clearAuth();
@@ -1377,40 +1407,124 @@ function onProfilesTableClick(e) {
 function updateProfilesTotalStat() {
   const el = $("profiles-total");
   if (!el) return;
-  el.textContent = String(vehicleProfileListCache.length);
+  const total = profilesFilterOptions?.total ?? profilesListMeta.total ?? 0;
+  el.textContent = String(total);
+}
+
+function populateProfilesFilterSelects(meta) {
+  const typeSel = $("profiles-filter-type");
+  const companySel = $("profiles-filter-company");
+  if (!typeSel || !companySel || !meta) return;
+  const typeVal = profilesFilters.vehicle_type;
+  const companyVal = profilesFilters.partnership_company;
+  typeSel.innerHTML = '<option value="">الكل</option>';
+  for (const opt of meta.vehicle_types || []) {
+    const o = document.createElement("option");
+    o.value = opt.value;
+    o.textContent = `${opt.value} (${opt.count})`;
+    typeSel.appendChild(o);
+  }
+  typeSel.value = typeVal;
+  companySel.innerHTML = '<option value="">الكل</option>';
+  for (const opt of meta.partnership_companies || []) {
+    const o = document.createElement("option");
+    o.value = opt.value;
+    const label = opt.value.length > 42 ? `${opt.value.slice(0, 42)}…` : opt.value;
+    o.textContent = `${label} (${opt.count})`;
+    companySel.appendChild(o);
+  }
+  companySel.value = companyVal;
+  const photoSel = $("profiles-filter-photo");
+  if (photoSel) photoSel.value = profilesFilters.has_photo || "";
+}
+
+async function loadProfilesFilterMeta() {
+  if (profilesFilterOptions) return profilesFilterOptions;
+  profilesFilterOptions = await api("/api/vehicle-profiles/meta");
+  populateProfilesFilterSelects(profilesFilterOptions);
+  updateProfilesTotalStat();
+  return profilesFilterOptions;
+}
+
+function buildProfilesListParams() {
+  const params = new URLSearchParams({
+    page: String(profilesPage),
+    page_size: String(PROFILES_PAGE_SIZE),
+  });
+  const q = profilesSearchQuery.trim();
+  if (q) params.set("q", q);
+  if (profilesFilters.vehicle_type) params.set("vehicle_type", profilesFilters.vehicle_type);
+  if (profilesFilters.partnership_company) {
+    params.set("partnership_company", profilesFilters.partnership_company);
+  }
+  if (profilesFilters.has_photo === "yes") params.set("has_photo", "true");
+  else if (profilesFilters.has_photo === "no") params.set("has_photo", "false");
+  return params;
+}
+
+function updateProfilesPaginationUi() {
+  const summary = $("profiles-results-summary");
+  const pageInfo = $("profiles-page-info");
+  const prevBtn = $("profiles-prev");
+  const nextBtn = $("profiles-next");
+  const { total, page, total_pages } = profilesListMeta;
+  if (summary) {
+    if (!total) {
+      summary.textContent = "لا توجد نتائج.";
+    } else {
+      const from = (page - 1) * PROFILES_PAGE_SIZE + 1;
+      const to = Math.min(page * PROFILES_PAGE_SIZE, total);
+      summary.textContent = `عرض ${from}–${to} من ${total} مركبة`;
+    }
+  }
+  if (pageInfo) {
+    pageInfo.textContent = total ? `صفحة ${page} من ${total_pages}` : "—";
+  }
+  if (prevBtn) prevBtn.disabled = page <= 1 || profilesListLoading;
+  if (nextBtn) nextBtn.disabled = page >= total_pages || !total || profilesListLoading;
 }
 
 async function refreshVehicleProfiles() {
   const tbody = $("profiles-body");
   if (!tbody) return;
-  const q = profilesSearchQuery.trim();
-  const params = new URLSearchParams({ limit: "20000" });
-  if (q) params.set("q", q);
-  vehicleProfileListCache = await api(`/api/vehicle-profiles?${params}`);
-  if (!Array.isArray(vehicleProfileListCache)) {
-    vehicleProfileListCache = [];
+  if (profilesListLoading) return;
+  profilesListLoading = true;
+  updateProfilesPaginationUi();
+  try {
+    await loadProfilesFilterMeta();
+    const data = await api(`/api/vehicle-profiles?${buildProfilesListParams()}`);
+    vehicleProfileListCache = Array.isArray(data?.items) ? data.items : [];
+    profilesListMeta = {
+      total: Number(data?.total) || 0,
+      page: Number(data?.page) || 1,
+      total_pages: Number(data?.total_pages) || 1,
+    };
+    profilesPage = profilesListMeta.page;
+    renderVehicleProfilesTable();
+  } finally {
+    profilesListLoading = false;
+    updateProfilesPaginationUi();
   }
-  updateProfilesTotalStat();
-  renderVehicleProfilesTable();
 }
 
 function renderVehicleProfilesTable() {
   const tbody = $("profiles-body");
   if (!tbody) return;
   updateProfilesTotalStat();
-  const filtered = filterVehicleProfiles(vehicleProfileListCache);
+  updateProfilesPaginationUi();
   if (!vehicleProfileListCache.length) {
-    tbody.innerHTML =
-      '<tr><td colspan="13" class="muted">لا توجد بروفايلات مسجّلة بعد.</td></tr>';
-    return;
-  }
-  if (!filtered.length) {
-    tbody.innerHTML =
-      '<tr><td colspan="13" class="muted">لا توجد نتائج مطابقة للبحث.</td></tr>';
+    const hasFilters =
+      profilesSearchQuery.trim() ||
+      profilesFilters.vehicle_type ||
+      profilesFilters.partnership_company ||
+      profilesFilters.has_photo;
+    tbody.innerHTML = hasFilters
+      ? '<tr><td colspan="13" class="muted">لا توجد نتائج مطابقة للبحث أو الفلاتر.</td></tr>'
+      : '<tr><td colspan="13" class="muted">لا توجد بروفايلات مسجّلة بعد.</td></tr>';
     return;
   }
   tbody.innerHTML = "";
-  for (const r of filtered) {
+  for (const r of vehicleProfileListCache) {
     const tr = document.createElement("tr");
     const mk = r.vehicle_make ? escapeHtml(r.vehicle_make) : "—";
     const vtype = r.vehicle_type ? escapeHtml(r.vehicle_type) : "—";

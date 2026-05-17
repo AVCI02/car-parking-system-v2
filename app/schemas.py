@@ -204,5 +204,24 @@ class VehicleProfileListItem(BaseModel):
     registration_order: int
 
 
+class VehicleProfileFilterOption(BaseModel):
+    value: str
+    count: int
+
+
+class VehicleProfileFiltersMeta(BaseModel):
+    total: int
+    vehicle_types: list[VehicleProfileFilterOption]
+    partnership_companies: list[VehicleProfileFilterOption]
+
+
+class VehicleProfileListResponse(BaseModel):
+    items: list[VehicleProfileListItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class VehicleTokenBody(BaseModel):
     public_token: str = Field(min_length=8, max_length=48)

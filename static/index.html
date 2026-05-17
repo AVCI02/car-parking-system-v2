@@ -177,11 +177,42 @@
       </header>
 
       <section class="panel panel-elevated">
-        <div class="profiles-search-row">
-          <label class="profiles-search-label" for="profiles-search">بحث باللوحة، الميكانيك، السائق، المالك، الشركة، الطراز، النوع، أو اللون</label>
-          <input type="search" id="profiles-search" class="checkin-detail-input profiles-search-input" placeholder="مثال: أ ب ج 1234، اسم السائق، الطراز، النوع..." autocomplete="off" />
+        <div class="profiles-toolbar">
+          <div class="profiles-search-row">
+            <label class="profiles-search-label" for="profiles-search">بحث سريع</label>
+            <input type="search" id="profiles-search" class="checkin-detail-input profiles-search-input" placeholder="لوحة، سائق، شركة، نوع..." autocomplete="off" />
+          </div>
+          <div class="profiles-filters-row">
+            <label class="profiles-filter-field">
+              <span class="profiles-filter-label">نوع المركبة</span>
+              <select id="profiles-filter-type" class="checkin-detail-input profiles-filter-select">
+                <option value="">الكل</option>
+              </select>
+            </label>
+            <label class="profiles-filter-field profiles-filter-field-wide">
+              <span class="profiles-filter-label">الشركة التضامنية</span>
+              <select id="profiles-filter-company" class="checkin-detail-input profiles-filter-select">
+                <option value="">الكل</option>
+              </select>
+            </label>
+            <label class="profiles-filter-field">
+              <span class="profiles-filter-label">صورة</span>
+              <select id="profiles-filter-photo" class="checkin-detail-input profiles-filter-select">
+                <option value="">الكل</option>
+                <option value="yes">مع صورة</option>
+                <option value="no">بدون صورة</option>
+              </select>
+            </label>
+            <button type="button" class="btn btn-sm-pad" id="profiles-clear-filters">مسح الفلاتر</button>
+          </div>
         </div>
-        <div class="table-wrap table-modern" style="margin-top:1rem;">
+        <p class="muted profiles-results-summary" id="profiles-results-summary" aria-live="polite"></p>
+        <div class="profiles-pagination" id="profiles-pagination">
+          <button type="button" class="btn btn-sm-pad" id="profiles-prev" disabled>السابق</button>
+          <span class="profiles-page-info" id="profiles-page-info">—</span>
+          <button type="button" class="btn btn-sm-pad" id="profiles-next" disabled>التالي</button>
+        </div>
+        <div class="table-wrap table-modern profiles-table-wrap">
           <table>
             <thead>
               <tr>

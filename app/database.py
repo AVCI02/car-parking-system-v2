@@ -107,6 +107,41 @@ def ensure_schema_migrations() -> None:
         "partnership_company",
         "ALTER TABLE vehicle_profiles ADD COLUMN partnership_company VARCHAR(128)",
     )
+    _ensure_vehicle_profile_indexes()
+
+
+def _ensure_vehicle_profile_indexes() -> None:
+    """فهارس لتسريع البحث والفلاتر على بروفايلات المركبات."""
+    from sqlalchemy import inspect
+
+    insp = inspect(engine)
+    if "vehicle_profiles" not in insp.get_table_names():
+        return
+    existing = {idx["name"] for idx in insp.get_indexes("vehicle_profiles")}
+    statements = [
+        (
+            "ix_vehicle_profiles_vehicle_type",
+            "CREATE INDEX IF NOT EXISTS ix_vehicle_profiles_vehicle_type ON vehicle_profiles (vehicle_type)",
+        ),
+        (
+            "ix_vehicle_profiles_partnership_company",
+            "CREATE INDEX IF NOT EXISTS ix_vehicle_profiles_partnership_company ON vehicle_profiles (partnership_company)",
+        ),
+        (
+            "ix_vehicle_profiles_driver_name",
+            "CREATE INDEX IF NOT EXISTS ix_vehicle_profiles_driver_name ON vehicle_profiles (driver_name)",
+        ),
+        (
+            "ix_vehicle_profiles_created_at",
+            "CREATE INDEX IF NOT EXISTS ix_vehicle_profiles_created_at ON vehicle_profiles (created_at)",
+        ),
+    ]
+    statements = [(name, ddl) for name, ddl in statements if name not in existing]
+    if not statements:
+        return
+    with engine.begin() as conn:
+        for _name, ddl in statements:
+            conn.execute(text(ddl))
 
 
 def get_db():

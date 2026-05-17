@@ -115,9 +115,68 @@ body.modal-open {
   border-radius: 8px;
 }
 
-.profiles-search-row {
+.profiles-toolbar {
   margin-top: 1rem;
-  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.profiles-search-row {
+  max-width: 480px;
+}
+
+.profiles-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
+.profiles-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 140px;
+}
+
+.profiles-filter-field-wide {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.profiles-filter-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.profiles-filter-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.profiles-results-summary {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+.profiles-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.profiles-page-info {
+  font-size: 0.9rem;
+  color: var(--muted);
+  min-width: 8rem;
+  text-align: center;
+}
+
+.profiles-table-wrap {
+  margin-top: 0.75rem;
 }
 
 .profiles-search-label {
