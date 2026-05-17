@@ -19,8 +19,12 @@ class SettingsResponse(BaseModel):
 class CheckInRequest(BaseModel):
     license_plate: str = Field(min_length=1, max_length=32)
     vehicle_make: str | None = Field(None, max_length=64)
+    vehicle_type: str | None = Field(None, max_length=64)
     vehicle_color: str | None = Field(None, max_length=32)
-    mechanical_number: str = Field(min_length=1, max_length=64)
+    driver_name: str | None = Field(None, max_length=128)
+    owner_name: str | None = Field(None, max_length=128)
+    partnership_company: str | None = Field(None, max_length=128)
+    mechanical_number: str | None = Field(None, max_length=64)
     notes: str | None = None
 
 
@@ -34,7 +38,11 @@ class CheckInResponse(BaseModel):
     registration_order: int | None = None
     qr_payload: str | None = None
     vehicle_make: str | None = None
+    vehicle_type: str | None = None
     vehicle_color: str | None = None
+    driver_name: str | None = None
+    owner_name: str | None = None
+    partnership_company: str | None = None
     mechanical_number: str | None = None
 
 
@@ -138,8 +146,12 @@ class VehicleProfilePublic(BaseModel):
     id: int
     license_plate: str
     vehicle_make: str | None
+    vehicle_type: str | None
     vehicle_color: str | None
-    mechanical_number: str
+    driver_name: str | None
+    owner_name: str | None
+    partnership_company: str | None
+    mechanical_number: str | None = None
     has_photo: bool = False
 
 
@@ -164,7 +176,11 @@ class VehiclePublicRegisterResponse(BaseModel):
     registration_order: int
     license_plate: str | None = None
     vehicle_make: str | None = None
+    vehicle_type: str | None = None
     vehicle_color: str | None = None
+    driver_name: str | None = None
+    owner_name: str | None = None
+    partnership_company: str | None = None
     mechanical_number: str | None = None
 
 
@@ -175,8 +191,12 @@ class VehicleProfileListItem(BaseModel):
     public_token: str
     license_plate: str
     vehicle_make: str | None
+    vehicle_type: str | None
     vehicle_color: str | None
-    mechanical_number: str
+    driver_name: str | None
+    owner_name: str | None
+    partnership_company: str | None
+    mechanical_number: str | None = None
     has_photo: bool = False
     created_at: datetime
     qr_payload: str

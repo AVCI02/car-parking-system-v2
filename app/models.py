@@ -31,8 +31,12 @@ class VehicleProfile(Base):
     public_token: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
     license_plate: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     vehicle_make = mapped_column(String(64), nullable=True)
+    vehicle_type = mapped_column(String(64), nullable=True)
     vehicle_color = mapped_column(String(32), nullable=True)
-    mechanical_number: Mapped[str] = mapped_column(String(64), nullable=False)
+    driver_name = mapped_column(String(128), nullable=True)
+    owner_name = mapped_column(String(128), nullable=True)
+    partnership_company = mapped_column(String(128), nullable=True)
+    mechanical_number: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     photo_path: Mapped[str | None] = mapped_column(String(256), nullable=True)
     created_at = mapped_column(DateTime, nullable=False)
 

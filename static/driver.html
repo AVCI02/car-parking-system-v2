@@ -29,14 +29,26 @@
           <label>رقم اللوحة <span class="muted">*</span>
             <input type="text" id="d-plate" required maxlength="32" autocomplete="off" placeholder="مثال: أ ب ج 1234" />
           </label>
-          <label>نوع / الطراز
-            <input type="text" id="d-make" maxlength="64" autocomplete="off" placeholder="مثال: تويوتا كورولا" />
+          <label>الطراز
+            <input type="text" id="d-make" maxlength="64" autocomplete="off" placeholder="مثال: كورولا" />
+          </label>
+          <label>النوع
+            <input type="text" id="d-type" maxlength="64" autocomplete="off" placeholder="مثال: تويوتا" />
           </label>
           <label>اللون
             <input type="text" id="d-color" maxlength="32" autocomplete="off" placeholder="مثال: فضي" />
           </label>
-          <label>رقم الميكانيك <span class="muted">*</span>
-            <input type="text" id="d-mech" required maxlength="64" autocomplete="off" placeholder="حسب الوثيقة" />
+          <label>اسم السائق
+            <input type="text" id="d-driver" maxlength="128" autocomplete="off" placeholder="الاسم الكامل" />
+          </label>
+          <label>اسم المالك
+            <input type="text" id="d-owner" maxlength="128" autocomplete="off" placeholder="الاسم الكامل" />
+          </label>
+          <label>الشركة التضامنية
+            <input type="text" id="d-company" maxlength="128" autocomplete="off" placeholder="اختياري" />
+          </label>
+          <label>رقم الميكانيك <span class="muted">(اختياري)</span>
+            <input type="text" id="d-mech" maxlength="64" autocomplete="off" placeholder="حسب الوثيقة" />
           </label>
           <label>صورة المركبة <span class="muted">(اختياري)</span>
             <input type="file" id="d-photo" accept="image/jpeg,image/png,image/webp" />
@@ -70,8 +82,24 @@
                   <dd id="driver-dl-make">—</dd>
                 </div>
                 <div>
+                  <dt>النوع</dt>
+                  <dd id="driver-dl-type">—</dd>
+                </div>
+                <div>
                   <dt>اللون</dt>
                   <dd id="driver-dl-color">—</dd>
+                </div>
+                <div>
+                  <dt>اسم السائق</dt>
+                  <dd id="driver-dl-driver">—</dd>
+                </div>
+                <div>
+                  <dt>اسم المالك</dt>
+                  <dd id="driver-dl-owner">—</dd>
+                </div>
+                <div>
+                  <dt>الشركة التضامنية</dt>
+                  <dd id="driver-dl-company">—</dd>
                 </div>
                 <div>
                   <dt>رقم الميكانيك</dt>
@@ -202,8 +230,12 @@
       const fd = new FormData();
       fd.append("license_plate", $("d-plate").value.trim());
       fd.append("vehicle_make", $("d-make").value.trim() || "");
+      fd.append("vehicle_type", $("d-type").value.trim() || "");
       fd.append("vehicle_color", $("d-color").value.trim() || "");
-      fd.append("mechanical_number", $("d-mech").value.trim());
+      fd.append("driver_name", $("d-driver").value.trim() || "");
+      fd.append("owner_name", $("d-owner").value.trim() || "");
+      fd.append("partnership_company", $("d-company").value.trim() || "");
+      fd.append("mechanical_number", $("d-mech").value.trim() || "");
       if (fileInput.files && fileInput.files[0]) {
         fd.append("photo", fileInput.files[0]);
       }
@@ -232,7 +264,11 @@
         $("driver-dl-profile").textContent = "#" + data.profile_id;
         setDlText("driver-dl-plate", data.license_plate || $("d-plate").value.trim());
         setDlText("driver-dl-make", data.vehicle_make || $("d-make").value.trim());
+        setDlText("driver-dl-type", data.vehicle_type || $("d-type").value.trim());
         setDlText("driver-dl-color", data.vehicle_color || $("d-color").value.trim());
+        setDlText("driver-dl-driver", data.driver_name || $("d-driver").value.trim());
+        setDlText("driver-dl-owner", data.owner_name || $("d-owner").value.trim());
+        setDlText("driver-dl-company", data.partnership_company || $("d-company").value.trim());
         setDlText("driver-dl-mech", data.mechanical_number || $("d-mech").value.trim());
 
         $("driver-qr-host").innerHTML = "";

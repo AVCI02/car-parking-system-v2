@@ -87,6 +87,26 @@ def ensure_schema_migrations() -> None:
         "mechanical_number",
         "ALTER TABLE vehicle_profiles ADD COLUMN mechanical_number VARCHAR(64) NOT NULL DEFAULT ''",
     )
+    _add_column_if_missing(
+        "vehicle_profiles",
+        "vehicle_type",
+        "ALTER TABLE vehicle_profiles ADD COLUMN vehicle_type VARCHAR(64)",
+    )
+    _add_column_if_missing(
+        "vehicle_profiles",
+        "driver_name",
+        "ALTER TABLE vehicle_profiles ADD COLUMN driver_name VARCHAR(128)",
+    )
+    _add_column_if_missing(
+        "vehicle_profiles",
+        "owner_name",
+        "ALTER TABLE vehicle_profiles ADD COLUMN owner_name VARCHAR(128)",
+    )
+    _add_column_if_missing(
+        "vehicle_profiles",
+        "partnership_company",
+        "ALTER TABLE vehicle_profiles ADD COLUMN partnership_company VARCHAR(128)",
+    )
 
 
 def get_db():

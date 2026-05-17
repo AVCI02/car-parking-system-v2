@@ -92,12 +92,20 @@
               autocomplete="off"
             />
             <div class="checkin-details">
-              <label class="checkout-label" for="mech">رقم الميكانيك <span class="muted">*</span></label>
-              <input type="text" id="mech" class="checkin-detail-input" required maxlength="64" autocomplete="off" placeholder="حسب الوثيقة" />
               <label class="checkout-label" for="make">الطراز</label>
-              <input type="text" id="make" class="checkin-detail-input" placeholder="تويوتا" autocomplete="off" />
+              <input type="text" id="make" class="checkin-detail-input" placeholder="كورولا" autocomplete="off" />
+              <label class="checkout-label" for="vehicle-type">النوع</label>
+              <input type="text" id="vehicle-type" class="checkin-detail-input" placeholder="تويوتا" autocomplete="off" />
               <label class="checkout-label" for="color">اللون</label>
               <input type="text" id="color" class="checkin-detail-input" placeholder="فضي" autocomplete="off" />
+              <label class="checkout-label" for="driver-name">اسم السائق</label>
+              <input type="text" id="driver-name" class="checkin-detail-input" placeholder="الاسم الكامل" autocomplete="off" />
+              <label class="checkout-label" for="owner-name">اسم المالك</label>
+              <input type="text" id="owner-name" class="checkin-detail-input" placeholder="الاسم الكامل" autocomplete="off" />
+              <label class="checkout-label" for="partnership-company">الشركة التضامنية</label>
+              <input type="text" id="partnership-company" class="checkin-detail-input" placeholder="اختياري" autocomplete="off" />
+              <label class="checkout-label" for="mech">رقم الميكانيك <span class="muted">(اختياري)</span></label>
+              <input type="text" id="mech" class="checkin-detail-input" maxlength="64" autocomplete="off" placeholder="حسب الوثيقة" />
               <label class="checkout-label" for="notes">ملاحظات</label>
               <textarea id="notes" class="checkin-detail-textarea" rows="2" placeholder="اختياري"></textarea>
             </div>

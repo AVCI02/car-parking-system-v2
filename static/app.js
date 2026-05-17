@@ -418,7 +418,11 @@ function normalizeVehicleProfileRow(p) {
     public_token: p.public_token ?? p.publicToken ?? "",
     license_plate: p.license_plate ?? p.licensePlate ?? "",
     vehicle_make: p.vehicle_make ?? p.vehicleMake ?? null,
+    vehicle_type: p.vehicle_type ?? p.vehicleType ?? null,
     vehicle_color: p.vehicle_color ?? p.vehicleColor ?? null,
+    driver_name: p.driver_name ?? p.driverName ?? null,
+    owner_name: p.owner_name ?? p.ownerName ?? null,
+    partnership_company: p.partnership_company ?? p.partnershipCompany ?? null,
     mechanical_number: p.mechanical_number ?? p.mechanicalNumber ?? "",
     qr_payload: p.qr_payload ?? p.qrPayload ?? "",
   };
@@ -441,7 +445,11 @@ function buildVehicleCardHtml(p) {
             <div><dt>رقم البروفايل</dt><dd>#${escapeHtml(String(row.id))}</dd></div>
             <div><dt>اللوحة</dt><dd class="driver-card-dl-value-wide">${dlValue(row.license_plate)}</dd></div>
             <div><dt>الطراز</dt><dd>${dlValue(row.vehicle_make)}</dd></div>
+            <div><dt>النوع</dt><dd>${dlValue(row.vehicle_type)}</dd></div>
             <div><dt>اللون</dt><dd>${dlValue(row.vehicle_color)}</dd></div>
+            <div><dt>اسم السائق</dt><dd>${dlValue(row.driver_name)}</dd></div>
+            <div><dt>اسم المالك</dt><dd>${dlValue(row.owner_name)}</dd></div>
+            <div><dt>الشركة التضامنية</dt><dd>${dlValue(row.partnership_company)}</dd></div>
             <div><dt>رقم الميكانيك</dt><dd class="driver-card-dl-value-wide">${dlValue(row.mechanical_number)}</dd></div>
           </dl>
           <div class="driver-card-qr-panel">
@@ -577,20 +585,32 @@ function filterVehicleProfiles(rows) {
   return rows.filter((r) => {
     const plate = (r.license_plate || "").toLowerCase();
     const mech = (r.mechanical_number || "").toLowerCase();
-    return plate.includes(q) || mech.includes(q);
+    const driver = (r.driver_name || "").toLowerCase();
+    const owner = (r.owner_name || "").toLowerCase();
+    const company = (r.partnership_company || "").toLowerCase();
+    return (
+      plate.includes(q) ||
+      mech.includes(q) ||
+      driver.includes(q) ||
+      owner.includes(q) ||
+      company.includes(q)
+    );
   });
 }
 
 function buildVehicleProfileDl(p) {
-  const mk = p.vehicle_make ? escapeHtml(p.vehicle_make) : "—";
-  const cl = p.vehicle_color ? escapeHtml(p.vehicle_color) : "—";
+  const field = (v) => (v ? escapeHtml(v) : "—");
   return `
     <dl class="checkout-result-dl profile-flow-dl">
       <div><dt>رقم البروفايل</dt><dd>${escapeHtml(String(p.id))}</dd></div>
       <div><dt>اللوحة</dt><dd>${escapeHtml(p.license_plate)}</dd></div>
-      <div><dt>الطراز</dt><dd>${mk}</dd></div>
-      <div><dt>اللون</dt><dd>${cl}</dd></div>
-      <div><dt>رقم الميكانيك</dt><dd>${escapeHtml(p.mechanical_number)}</dd></div>
+      <div><dt>الطراز</dt><dd>${field(p.vehicle_make)}</dd></div>
+      <div><dt>النوع</dt><dd>${field(p.vehicle_type)}</dd></div>
+      <div><dt>اللون</dt><dd>${field(p.vehicle_color)}</dd></div>
+      <div><dt>اسم السائق</dt><dd>${field(p.driver_name)}</dd></div>
+      <div><dt>اسم المالك</dt><dd>${field(p.owner_name)}</dd></div>
+      <div><dt>الشركة التضامنية</dt><dd>${field(p.partnership_company)}</dd></div>
+      <div><dt>رقم الميكانيك</dt><dd>${field(p.mechanical_number)}</dd></div>
     </dl>`;
 }
 
@@ -676,7 +696,12 @@ async function showVehicleFlowFromScan(publicToken, data) {
             profile_id: cin.profile_id ?? data.profile?.id ?? null,
             public_token: publicToken,
             vehicle_make: data.profile?.vehicle_make ?? cin.vehicle_make ?? null,
+            vehicle_type: data.profile?.vehicle_type ?? cin.vehicle_type ?? null,
             vehicle_color: data.profile?.vehicle_color ?? cin.vehicle_color ?? null,
+            driver_name: data.profile?.driver_name ?? cin.driver_name ?? null,
+            owner_name: data.profile?.owner_name ?? cin.owner_name ?? null,
+            partnership_company:
+              data.profile?.partnership_company ?? cin.partnership_company ?? null,
             mechanical_number:
               data.profile?.mechanical_number ?? cin.mechanical_number ?? null,
             registration_order: cin.registration_order ?? null,
@@ -849,7 +874,11 @@ function resolveProfileForReceipt(session) {
         public_token: token,
         license_plate: session.license_plate || "",
         vehicle_make: session.vehicle_make ?? null,
+        vehicle_type: session.vehicle_type ?? null,
         vehicle_color: session.vehicle_color ?? null,
+        driver_name: session.driver_name ?? null,
+        owner_name: session.owner_name ?? null,
+        partnership_company: session.partnership_company ?? null,
         mechanical_number: session.mechanical_number || "",
         registration_order: session.registration_order ?? null,
         qr_payload: session.qr_payload || token,
@@ -1507,18 +1536,18 @@ $("settings-form").addEventListener("submit", async (e) => {
 $("checkin-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const mechVal = ($("mech") && $("mech").value) ? $("mech").value.trim() : "";
-  if (!mechVal) {
-    alert("رقم الميكانيك إلزامي للدخول اليدوي.");
-    return;
-  }
   try {
     const data = await api("/api/check-in", {
       method: "POST",
       body: JSON.stringify({
         license_plate: $("plate").value,
-        mechanical_number: mechVal,
+        mechanical_number: mechVal || null,
         vehicle_make: $("make").value || null,
+        vehicle_type: $("vehicle-type").value || null,
         vehicle_color: $("color").value || null,
+        driver_name: $("driver-name").value || null,
+        owner_name: $("owner-name").value || null,
+        partnership_company: $("partnership-company").value || null,
         notes: $("notes").value || null,
       }),
     });
@@ -1533,15 +1562,24 @@ $("checkin-form").addEventListener("submit", async (e) => {
       profile_id: data.profile_id ?? null,
       public_token: data.public_token ?? null,
       vehicle_make: data.vehicle_make || $("make").value.trim() || null,
+      vehicle_type: data.vehicle_type || $("vehicle-type").value.trim() || null,
       vehicle_color: data.vehicle_color || $("color").value.trim() || null,
-      mechanical_number: data.mechanical_number || mechVal,
+      driver_name: data.driver_name || $("driver-name").value.trim() || null,
+      owner_name: data.owner_name || $("owner-name").value.trim() || null,
+      partnership_company:
+        data.partnership_company || $("partnership-company").value.trim() || null,
+      mechanical_number: data.mechanical_number || mechVal || null,
       registration_order: data.registration_order ?? null,
       qr_payload: data.qr_payload ?? null,
     });
     $("plate").value = "";
     $("mech").value = "";
     $("make").value = "";
+    $("vehicle-type").value = "";
     $("color").value = "";
+    $("driver-name").value = "";
+    $("owner-name").value = "";
+    $("partnership-company").value = "";
     $("notes").value = "";
     await refreshDeskData();
     if (!$("view-tickets").classList.contains("hidden")) {

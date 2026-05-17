@@ -284,13 +284,34 @@ def _finalize_checkout_session(db: Session, row: ParkingSession) -> CheckOutResp
     )
 
 
+def _optional_profile_text(value: str | None, max_len: int) -> str | None:
+    s = (value or "").strip()
+    if not s:
+        return None
+    if len(s) > max_len:
+        raise HTTPException(status_code=400, detail=f"الحقل يتجاوز {max_len} حرفًا.")
+    return s
+
+
+def _mechanical_number(value: str | None) -> str:
+    s = (value or "").strip()
+    if len(s) > 64:
+        raise HTTPException(status_code=400, detail="رقم الميكانيك طويل جدًا (64 حرفًا كحد أقصى).")
+    return s
+
+
 def _profile_public(p: VehicleProfile) -> VehicleProfilePublic:
+    mech = _mechanical_number(p.mechanical_number)
     return VehicleProfilePublic(
         id=p.id,
         license_plate=p.license_plate,
         vehicle_make=p.vehicle_make,
+        vehicle_type=p.vehicle_type,
         vehicle_color=p.vehicle_color,
-        mechanical_number=p.mechanical_number,
+        driver_name=p.driver_name,
+        owner_name=p.owner_name,
+        partnership_company=p.partnership_company,
+        mechanical_number=mech or None,
         has_photo=bool(p.photo_path),
     )
 
@@ -398,17 +419,11 @@ def check_in(
     plate = body.license_plate.strip().upper()
     if not plate or len(plate) > 32:
         raise HTTPException(status_code=400, detail="رقم اللوحة غير صالح.")
-    mech = body.mechanical_number.strip()
-    if not mech or len(mech) > 64:
-        raise HTTPException(status_code=400, detail="رقم الميكانيك مطلوب للتسجيل اليدوي.")
-    dup_profile = db.scalar(
-        select(VehicleProfile.id).where(
-            or_(
-                func.lower(VehicleProfile.license_plate) == func.lower(plate),
-                func.lower(VehicleProfile.mechanical_number) == func.lower(mech),
-            )
-        )
-    )
+    mech = _mechanical_number(body.mechanical_number)
+    dup_filters = [func.lower(VehicleProfile.license_plate) == func.lower(plate)]
+    if mech:
+        dup_filters.append(func.lower(VehicleProfile.mechanical_number) == func.lower(mech))
+    dup_profile = db.scalar(select(VehicleProfile.id).where(or_(*dup_filters)))
     if dup_profile is not None:
         raise HTTPException(
             status_code=409,
@@ -421,8 +436,12 @@ def check_in(
     prof = VehicleProfile(
         public_token=token,
         license_plate=plate,
-        vehicle_make=(body.vehicle_make or "").strip() or None,
-        vehicle_color=(body.vehicle_color or "").strip() or None,
+        vehicle_make=_optional_profile_text(body.vehicle_make, 64),
+        vehicle_type=_optional_profile_text(body.vehicle_type, 64),
+        vehicle_color=_optional_profile_text(body.vehicle_color, 32),
+        driver_name=_optional_profile_text(body.driver_name, 128),
+        owner_name=_optional_profile_text(body.owner_name, 128),
+        partnership_company=_optional_profile_text(body.partnership_company, 128),
         mechanical_number=mech,
         photo_path=None,
         created_at=now,
@@ -473,8 +492,12 @@ def check_in(
         registration_order=int(total_profiles),
         qr_payload=qr_payload,
         vehicle_make=prof.vehicle_make,
+        vehicle_type=prof.vehicle_type,
         vehicle_color=prof.vehicle_color,
-        mechanical_number=prof.mechanical_number,
+        driver_name=prof.driver_name,
+        owner_name=prof.owner_name,
+        partnership_company=prof.partnership_company,
+        mechanical_number=mech or None,
     )
 
 
@@ -658,17 +681,19 @@ async def public_register_vehicle_profile(
     request: Request,
     license_plate: str = Form(...),
     vehicle_make: str | None = Form(None),
+    vehicle_type: str | None = Form(None),
     vehicle_color: str | None = Form(None),
-    mechanical_number: str = Form(...),
+    driver_name: str | None = Form(None),
+    owner_name: str | None = Form(None),
+    partnership_company: str | None = Form(None),
+    mechanical_number: str | None = Form(None),
     photo: UploadFile | None = File(None),
     db: Session = Depends(get_db),
 ):
     plate = license_plate.strip().upper()
     if not plate or len(plate) > 32:
         raise HTTPException(status_code=400, detail="رقم اللوحة غير صالح.")
-    mech = mechanical_number.strip()
-    if not mech or len(mech) > 64:
-        raise HTTPException(status_code=400, detail="رقم الميكانيك مطلوب.")
+    mech = _mechanical_number(mechanical_number)
     dup_plate = db.scalar(
         select(VehicleProfile.id).where(
             func.lower(VehicleProfile.license_plate) == func.lower(plate)
@@ -679,16 +704,17 @@ async def public_register_vehicle_profile(
             status_code=409,
             detail="هذه اللوحة مسجّلة مسبقًا. إن كانت سيارتك فقد تم إنشاء البروفايل سابقًا.",
         )
-    dup_mech = db.scalar(
-        select(VehicleProfile.id).where(
-            func.lower(VehicleProfile.mechanical_number) == func.lower(mech)
+    if mech:
+        dup_mech = db.scalar(
+            select(VehicleProfile.id).where(
+                func.lower(VehicleProfile.mechanical_number) == func.lower(mech)
+            )
         )
-    )
-    if dup_mech is not None:
-        raise HTTPException(
-            status_code=409,
-            detail="رقم الميكانيك مسجّل مسبقًا لمركبة أخرى في النظام.",
-        )
+        if dup_mech is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="رقم الميكانيك مسجّل مسبقًا لمركبة أخرى في النظام.",
+            )
     photo_bytes: bytes | None = None
     photo_ext: str | None = None
     if photo is not None and photo.filename:
@@ -708,8 +734,12 @@ async def public_register_vehicle_profile(
     prof = VehicleProfile(
         public_token=token,
         license_plate=plate,
-        vehicle_make=(vehicle_make or "").strip() or None,
-        vehicle_color=(vehicle_color or "").strip() or None,
+        vehicle_make=_optional_profile_text(vehicle_make, 64),
+        vehicle_type=_optional_profile_text(vehicle_type, 64),
+        vehicle_color=_optional_profile_text(vehicle_color, 32),
+        driver_name=_optional_profile_text(driver_name, 128),
+        owner_name=_optional_profile_text(owner_name, 128),
+        partnership_company=_optional_profile_text(partnership_company, 128),
         mechanical_number=mech,
         photo_path=None,
         created_at=now,
@@ -737,8 +767,12 @@ async def public_register_vehicle_profile(
         registration_order=int(total_profiles),
         license_plate=plate,
         vehicle_make=prof.vehicle_make,
+        vehicle_type=prof.vehicle_type,
         vehicle_color=prof.vehicle_color,
-        mechanical_number=mech,
+        driver_name=prof.driver_name,
+        owner_name=prof.owner_name,
+        partnership_company=prof.partnership_company,
+        mechanical_number=mech or None,
     )
 
 
@@ -781,8 +815,12 @@ def list_vehicle_profiles(
             public_token=r.public_token,
             license_plate=r.license_plate,
             vehicle_make=r.vehicle_make,
+            vehicle_type=r.vehicle_type,
             vehicle_color=r.vehicle_color,
-            mechanical_number=r.mechanical_number,
+            driver_name=r.driver_name,
+            owner_name=r.owner_name,
+            partnership_company=r.partnership_company,
+            mechanical_number=_mechanical_number(r.mechanical_number) or None,
             has_photo=bool(r.photo_path),
             created_at=r.created_at,
             qr_payload=_vehicle_qr_payload(r.public_token),
