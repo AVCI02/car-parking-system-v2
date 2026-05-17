@@ -583,18 +583,17 @@ function filterVehicleProfiles(rows) {
   const q = profilesSearchQuery.trim().toLowerCase();
   if (!q) return rows;
   return rows.filter((r) => {
-    const plate = (r.license_plate || "").toLowerCase();
-    const mech = (r.mechanical_number || "").toLowerCase();
-    const driver = (r.driver_name || "").toLowerCase();
-    const owner = (r.owner_name || "").toLowerCase();
-    const company = (r.partnership_company || "").toLowerCase();
-    return (
-      plate.includes(q) ||
-      mech.includes(q) ||
-      driver.includes(q) ||
-      owner.includes(q) ||
-      company.includes(q)
-    );
+    const fields = [
+      r.license_plate,
+      r.mechanical_number,
+      r.vehicle_make,
+      r.vehicle_type,
+      r.vehicle_color,
+      r.driver_name,
+      r.owner_name,
+      r.partnership_company,
+    ];
+    return fields.some((v) => (v || "").toLowerCase().includes(q));
   });
 }
 
@@ -1168,9 +1167,14 @@ function wireNav() {
   });
   $("tickets-body").addEventListener("click", onTicketsTableClick);
   $("profiles-body")?.addEventListener("click", onProfilesTableClick);
+  let profilesSearchTimer = null;
   $("profiles-search")?.addEventListener("input", (e) => {
     profilesSearchQuery = e.target.value || "";
     renderVehicleProfilesTable();
+    clearTimeout(profilesSearchTimer);
+    profilesSearchTimer = setTimeout(() => {
+      refreshVehicleProfiles().catch((err) => alert(err.message));
+    }, 350);
   });
   $("btn-logout").addEventListener("click", () => {
     clearAuth();
@@ -1379,7 +1383,10 @@ function updateProfilesTotalStat() {
 async function refreshVehicleProfiles() {
   const tbody = $("profiles-body");
   if (!tbody) return;
-  vehicleProfileListCache = await api("/api/vehicle-profiles?limit=300");
+  const q = profilesSearchQuery.trim();
+  const params = new URLSearchParams({ limit: "20000" });
+  if (q) params.set("q", q);
+  vehicleProfileListCache = await api(`/api/vehicle-profiles?${params}`);
   if (!Array.isArray(vehicleProfileListCache)) {
     vehicleProfileListCache = [];
   }
@@ -1394,20 +1401,24 @@ function renderVehicleProfilesTable() {
   const filtered = filterVehicleProfiles(vehicleProfileListCache);
   if (!vehicleProfileListCache.length) {
     tbody.innerHTML =
-      '<tr><td colspan="9" class="muted">لا توجد بروفايلات مسجّلة بعد.</td></tr>';
+      '<tr><td colspan="13" class="muted">لا توجد بروفايلات مسجّلة بعد.</td></tr>';
     return;
   }
   if (!filtered.length) {
     tbody.innerHTML =
-      '<tr><td colspan="9" class="muted">لا توجد نتائج مطابقة للبحث.</td></tr>';
+      '<tr><td colspan="13" class="muted">لا توجد نتائج مطابقة للبحث.</td></tr>';
     return;
   }
   tbody.innerHTML = "";
   for (const r of filtered) {
     const tr = document.createElement("tr");
     const mk = r.vehicle_make ? escapeHtml(r.vehicle_make) : "—";
+    const vtype = r.vehicle_type ? escapeHtml(r.vehicle_type) : "—";
     const cl = r.vehicle_color ? escapeHtml(r.vehicle_color) : "—";
     const mech = escapeHtml(r.mechanical_number);
+    const driver = r.driver_name ? escapeHtml(r.driver_name) : "—";
+    const owner = r.owner_name ? escapeHtml(r.owner_name) : "—";
+    const company = r.partnership_company ? escapeHtml(r.partnership_company) : "—";
     const created = formatDamascusDateTime(r.created_at);
     const photoLabel = r.has_photo ? "نعم" : "لا";
     const seq = Number(r.registration_order);
@@ -1417,8 +1428,12 @@ function renderVehicleProfilesTable() {
       <td>${escapeHtml(String(r.id))}</td>
       <td>${escapeHtml(r.license_plate)}</td>
       <td>${mk}</td>
+      <td>${vtype}</td>
       <td>${cl}</td>
       <td>${mech}</td>
+      <td>${driver}</td>
+      <td>${owner}</td>
+      <td>${company}</td>
       <td>${photoLabel}</td>
       <td>${created}</td>
       <td class="profiles-actions-cell"></td>`;

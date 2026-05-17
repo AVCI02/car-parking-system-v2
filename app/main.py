@@ -792,23 +792,43 @@ def vehicle_profile_photo(
     return FileResponse(full, media_type=mime or "application/octet-stream")
 
 
+def _vehicle_profile_search_filters(term: str):
+    """مطابقة جزئية غير حساسة لحالة الأحرف على حقول البروفايل."""
+    pattern = f"%{term.strip().lower()}%"
+
+    def _col(column):
+        return func.coalesce(func.lower(column), "").like(pattern)
+
+    return or_(
+        _col(VehicleProfile.license_plate),
+        _col(VehicleProfile.mechanical_number),
+        _col(VehicleProfile.vehicle_make),
+        _col(VehicleProfile.vehicle_type),
+        _col(VehicleProfile.vehicle_color),
+        _col(VehicleProfile.driver_name),
+        _col(VehicleProfile.owner_name),
+        _col(VehicleProfile.partnership_company),
+    )
+
+
+# حد جلب بروفايلات المركبات في الواجهة (يُفضّل مزامنته مع static/app.js)
+VEHICLE_PROFILES_LIST_MAX = 20_000
+
+
 @app.get("/api/vehicle-profiles", response_model=list[VehicleProfileListItem])
 def list_vehicle_profiles(
     request: Request,
-    limit: int = Query(200, ge=1, le=500),
+    limit: int = Query(VEHICLE_PROFILES_LIST_MAX, ge=1, le=VEHICLE_PROFILES_LIST_MAX),
+    q: str | None = Query(None, max_length=120),
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
     """كل بروفايلات المركبات (للموظف والمدير)."""
-    rows = db.scalars(
-        select(VehicleProfile)
-        .order_by(VehicleProfile.created_at.desc())
-        .limit(limit)
-    ).all()
-    ordered_ids = db.scalars(
-        select(VehicleProfile.id).order_by(VehicleProfile.id.asc())
-    ).all()
-    reg_rank = {pid: idx + 1 for idx, pid in enumerate(ordered_ids)}
+    reg_order = func.row_number().over(order_by=VehicleProfile.id.asc()).label("registration_order")
+    stmt = select(VehicleProfile, reg_order).order_by(VehicleProfile.created_at.desc())
+    if q and q.strip():
+        stmt = stmt.where(_vehicle_profile_search_filters(q))
+    rows = db.execute(stmt.limit(limit)).all()
     return [
         VehicleProfileListItem(
             id=r.id,
@@ -824,9 +844,9 @@ def list_vehicle_profiles(
             has_photo=bool(r.photo_path),
             created_at=r.created_at,
             qr_payload=_vehicle_qr_payload(r.public_token),
-            registration_order=reg_rank.get(r.id, r.id),
+            registration_order=int(reg),
         )
-        for r in rows
+        for r, reg in rows
     ]
 
 
